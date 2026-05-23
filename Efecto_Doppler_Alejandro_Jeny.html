@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuaderno Digital: Efecto Doppler</title>
+    
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    
+    <!-- p5.js para Simulaciones -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+    <!-- Utilities -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Kalam:wght@300;400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #0f172a; --paper-color: #f8fafc;
+            --line-color: #93c5fd; --margin-line-color: #f87171;
+            --text-color: #334155; --accent: #0284c7;  /* Azul Doppler */
+            --accent-red: #ef4444; /* Rojo Doppler */
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            font-family: 'Outfit', sans-serif; color: var(--text-color);
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; overflow: hidden;
+        }
+
+        .notebook-container {
+            position: relative; width: 1050px; height: 680px;
+            perspective: 2000px; display: flex;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.8);
+            border-radius: 10px; background: #cbd5e1;
+        }
+
+        .binder {
+            position: absolute; left: 50%; top: 2%; bottom: 2%; width: 40px;
+            transform: translateX(-50%); z-index: 100; display: flex;
+            flex-direction: column; justify-content: space-evenly;
+            align-items: center; pointer-events: none;
+        }
+
+        .ring {
+            width: 100%; height: 12px;
+            background: linear-gradient(to bottom, #d1d5db, #9ca3af, #4b5563, #9ca3af);
+            border-radius: 6px; box-shadow: inset 0 2px 2px rgba(255,255,255,0.5), 0 4px 4px rgba(0,0,0,0.4);
+        }
+
+        .page-stack { position: absolute; top: 0; width: 50%; height: 100%; background: var(--paper-color); }
+        .stack-left { left: 0; border-radius: 10px 0 0 10px; box-shadow: inset -10px 0 15px rgba(0,0,0,0.1); }
+        .stack-right { right: 0; border-radius: 0 10px 10px 0; box-shadow: inset 10px 0 15px rgba(0,0,0,0.1); }
+
+        .page {
+            position: absolute; width: 100%; height: 100%;
+            background-color: var(--paper-color);
+            background-image: linear-gradient(transparent 95%, var(--line-color) 95%), linear-gradient(90deg, transparent 10%, var(--margin-line-color) 10%, var(--margin-line-color) 10.5%, transparent 10.5%);
+            background-size: 100% 1.8rem, 100% 100%;
+            padding: 2.5rem 2.5rem 2.5rem 3.5rem; box-sizing: border-box;
+            overflow-y: auto; backface-visibility: hidden; transform-style: preserve-3d;
+        }
+
+        .page-right { border-radius: 0 10px 10px 0; }
+        .page-left {
+            border-radius: 10px 0 0 10px;
+            background-image: linear-gradient(transparent 95%, var(--line-color) 95%), linear-gradient(270deg, transparent 10%, var(--margin-line-color) 10%, var(--margin-line-color) 10.5%, transparent 10.5%);
+        }
+
+        #leaves-container {
+            position: absolute; top: 0; right: 0; width: 50%; height: 100%;
+            transform-style: preserve-3d; z-index: 10;
+        }
+
+        .leaf {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transform-origin: left center; transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+            transform-style: preserve-3d; box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .leaf.flipped { transform: rotateY(-180deg); }
+        .page-front { transform: rotateY(0deg); z-index: 2; }
+        .page-back {
+            transform: rotateY(180deg);
+            background-image: linear-gradient(transparent 95%, var(--line-color) 95%), linear-gradient(270deg, transparent 10%, var(--margin-line-color) 10%, var(--margin-line-color) 10.5%, transparent 10.5%);
+            padding: 2.5rem 3.5rem 2.5rem 2.5rem; border-radius: 10px 0 0 10px;
+        }
+
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; color: var(--accent); margin-top: 0; }
+        h2 { font-size: 1.4rem; border-bottom: 2px dashed var(--line-color); padding-bottom: 5px; margin-bottom: 5px;}
+        p { line-height: 1.6rem; margin: 0.4rem 0; font-size: 0.95rem; }
+        ul { margin: 0; padding-left: 20px; font-size: 0.9rem; }
+        .handwritten { font-family: 'Kalam', cursive; color: #475569; }
+
+        .math-block {
+            background: rgba(255,255,255,0.7); border-left: 4px solid var(--accent);
+            padding: 8px; margin: 10px 0; border-radius: 4px; text-align: center;
+        }
+
+        .controls-panel {
+            background: #e2e8f0; border: 2px solid #cbd5e1; border-radius: 8px;
+            padding: 15px; margin-top: 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.80rem;
+        }
+
+        input[type="range"] { width: 100%; accent-color: var(--accent); margin-bottom: 5px; }
+
+        .nav-btn {
+            position: absolute; bottom: 15px; background: var(--accent); color: white;
+            border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;
+            font-family: 'Outfit', sans-serif; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s; z-index: 50;
+        }
+        .nav-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
+        .btn-prev { left: 20px; } .btn-next { right: 20px; }
+
+        .page-num { position: absolute; bottom: 20px; font-family: 'Kalam', cursive; font-size: 1.2rem; color: #64748b; }
+        .page-num.left { left: 50%; transform: translateX(-50%); }
+        .page-num.right { right: 50%; transform: translateX(50%); }
+
+        .canvas-container { width: 100%; height: 200px; background: #e0f2fe; border: 2px solid var(--accent); border-radius: 8px; margin-top: 10px; overflow: hidden; position: relative;}
+        .graph-container { width: 100%; height: 180px; background: white; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 10px;  background-image: repeating-linear-gradient(#f0f0f0 0 1px, transparent 1px 100%), repeating-linear-gradient(90deg, #f0f0f0 0 1px, transparent 1px 100%); background-size: 20px 20px;}
+
+        .chat-avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+    <!-- Globals -->
+    <div style="position:fixed; top:20px; right:20px; display:flex; gap:10px; z-index:2000;">
+        <button id="btn-screenshot" class="nav-btn" style="position:static" title="Captura"><i class="fa-solid fa-camera"></i></button>
+        <button id="btn-qr" class="nav-btn" style="position:static" title="QR"><i class="fa-solid fa-qrcode"></i></button>
+    </div>
+
+    <div id="qr-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); z-index: 2000; justify-content:center; align-items:center;">
+        <div style="background: white; padding: 20px; border-radius: 15px; text-align: center;">
+            <div id="qrcode-container" style="margin-bottom: 15px;"></div>
+            <button onclick="document.getElementById('qr-modal').style.display='none'" class="nav-btn" style="position:static;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- Chatbot Virtual -->
+    <div id="chatbot-container" style="position:fixed; bottom: 80px; left: 20px; z-index: 2000; display:flex; flex-direction:column; align-items:flex-start;">
+        <div id="chat-window" style="display:none; width: 380px; height: 480px; background: var(--paper-color); border: 2px solid var(--accent); border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); overflow: hidden; flex-direction: column;">
+            <div style="background: var(--accent); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img id="chat-header-img" src="" class="chat-avatar" style="border-color:white; width:30px; height:30px;">
+                    <span id="chat-avatar-name" style="font-family: 'Outfit'; font-weight: 600;">Chat con...</span>
+                </div>
+                <!-- nano badge icon indicator -->
+                <div id="nano-badge" style="font-size: 0.7rem; background: #fbbf24; color: black; padding: 2px 6px; border-radius: 10px; display:none;">✨ Nano AI</div>
+                <button onclick="toggleChat()" style="background:transparent; border:none; color:white; cursor:pointer;"><i class="fa-solid fa-times"></i></button>
+            </div>
+            
+            <div id="chat-history" style="flex-grow: 1; padding: 10px; overflow-y: auto; font-family: 'Outfit'; font-size: 0.95rem; background: #fdfdfd; display:flex; flex-direction:column; gap:8px;"></div>
+            
+            <div style="padding: 10px; border-top: 1px solid #ccc; background: #e2e8f0;">
+                <select id="chat-avatar-select" style="width:100%; padding: 5px; margin-bottom: 5px; border-radius: 5px; font-family:'Outfit'" onchange="changeAvatar()">
+                    <option value="newton">Isaac Newton</option>
+                    <option value="hawking">Stephen Hawking</option>
+                    <option value="tyson">Neil deGrasse Tyson</option>
+                    <option value="lovelace">Ada Lovelace</option>
+                    <option value="curie">Marie Curie</option>
+                </select>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="chat-input" placeholder="Pregunta sobre efecto Doppler..." style="flex-grow: 1; padding: 5px; border: 1px solid #cbd5e1; border-radius: 5px; font-family:'Outfit'" onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                    <button onclick="sendChatMessage()" style="background: var(--accent); color: white; border: none; padding: 5px 12px; border-radius: 5px; cursor:pointer;"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+        <button onclick="toggleChat()" style="width: 55px; height: 55px; border-radius: 50%; background: var(--accent); color: white; border: none; font-size: 1.6rem; box-shadow: 0 5px 15px rgba(0,0,0,0.5); cursor:pointer; margin-top: 10px;">
+            <i class="fa-solid fa-robot"></i>
+        </button>
+    </div>
+
+    <!-- Notebook SPA -->
+    <div class="notebook-container">
+        <div class="page-stack stack-left"><div class="page page-left" id="static-left"></div></div>
+        <div class="binder" id="binder"></div>
+        <div id="leaves-container"></div>
+        <div class="page-stack stack-right" style="z-index: -1;">
+            <div class="page page-right" id="static-right"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. PAGES DATA ---
+        const pagesData = [
+            { id: 1, side: 'left',  content: `
+                <div style="text-align:center; margin-top: 1rem;">
+                    <h1>Efecto Doppler</h1>
+                    <p class="handwritten" style="font-size: 1.2rem; margin-top:0.5rem;">Ondas en Movimiento Relativo</p>
+                    <br>
+                    <img src="img/cover_doppler.png" style="width:80%; border-radius:10px; box-shadow: 0 10px 20px rgba(0,0,0,0.2); margin-top:10px;" alt="Ambulancia Doppler">
+                    <br><br>
+                    <p style="font-weight: 800; font-size:1.2rem; color: var(--accent)">Por:</p>
+                    <p style="font-weight: 600; font-size:1.1rem;">Oscar Alejandro Ramírez Espinosa<br>y Jeny Maritza Mora Cardona</p>
+                    <p class="handwritten" style="color:#64748b; margin-top:10px;">Ingeniería Industrial</p>
+                </div>
+            ` },
+            { id: 2, side: 'right', content: `
+                <h2>1. Principio Físico</h2>
+                <p>El <strong>Efecto Doppler</strong> es el cambio de frecuencia aparente de una onda producido por el movimiento relativo de la fuente respecto a su observador.</p>
+                <div style="background:#e0f2fe; padding:10px; border-left:4px solid var(--accent); margin:10px 0; font-size:0.9rem;">
+                    <strong style="color:var(--accent)">Acercamiento (Blue Shift):</strong> Frente a la fuente las ondas se "amontonan". La longitud de onda $\\lambda$ disminuye, la frecuencia $f'$ aumenta (tono más agudo).<br>
+                    <strong style="color:var(--accent-red)">Alejamiento (Red Shift):</strong> Detrás de la fuente las ondas se "estiran". $\\lambda$ aumenta, $f'$ disminuye (tono más grave).
+                </div>
+                <h3>Aplicaciones en Ingeniería</h3>
+                <ul style="font-size: 0.85rem; line-height: 1.2rem;">
+                    <li><strong style="color:var(--accent)">Radar Doppler:</strong> Medición de velocidad en líneas de producción y control de tráfico.</li>
+                    <li><strong style="color:var(--accent)">Flujometría Ultrasónica:</strong> Medición no invasiva de caudal de fluidos en tuberías industriales usando ecos de partículas en suspensión.</li>
+                    <li><strong style="color:var(--accent)">Acústica Automotriz:</strong> Análisis de ruido dinámico (NVH) de vehículos en túneles de viento y tránsito.</li>
+                </ul>
+            ` },
+            { id: 3, side: 'left',  content: `
+                <h2>2. Ecuación General</h2>
+                <p>La frecuencia percibida $f'$ relaciona la velocidad de la onda $v$, y las velocidades del observador $v_o$ y la fuente $v_f$:</p>
+                <div class="math-block">
+                    $$ f' = f_0 \\left( \\frac{v \\pm v_o}{v \\mp v_f} \\right) $$
+                </div>
+                <p><strong>Convenio de Signos (Crucial):</strong></p>
+                <ul style="font-size: 0.85rem; line-height: 1.3rem;">
+                    <li><strong>Numerador ($v_o$):</strong> Usar <strong>$+$</strong> si el observador se <em>acerca</em> a la fuente, y <strong>$-$</strong> si se <em>aleja</em>.</li>
+                    <li><strong>Denominador ($v_f$):</strong> Usar <strong>$-$</strong> si la fuente se <em>acerca</em> al observador, y <strong>$+$</strong> si se <em>aleja</em>.</li>
+                </ul>
+                <p><em>Regla mnemotécnica:</em> Cualquier movimiento que tienda a "juntarlos" debe aumentar la frecuencia matemáticamente (numerador mayor, denominador menor).</p>
+            ` },
+            { id: 4, side: 'right', content: `
+                <h2>3. Casos Límite y Aproximaciones</h2>
+                <div style="font-size:0.85rem; line-height:1.2;">
+                    <p><strong>Fuente Supersónica ($v_f > v$):</strong></p>
+                    <p>La fuente "supera" a sus propias ondas. Forma un choque de presiones cónicas llamado <strong>Cono de Mach</strong>. El Número de Mach es:</p>
+                    <div class="math-block" style="margin:2px">$$ M = \\frac{v_f}{v} $$</div>
+                    <p>El semiángulo del cono $\\theta$ está dado por: $\\sin \\theta = \\frac{v}{v_f} = \\frac{1}{M}$</p>
+
+                    <p style="margin-top:10px;"><strong>Ondas Electromagnéticas (LIDAR, Láser):</strong></p>
+                    <p>La luz no requiere medio y viaja a $c$. Para ingeniería (bajas velocidades $|v| \\ll c$), la aproximación relativista es:</p>
+                    <div class="math-block" style="margin:2px">$$ f' \\approx f_0 \\left(1 \\pm \\frac{v}{c}\\right) $$</div>
+                    <p>Base fundamental de los medidores de velocidad láser (Lidar) en robótica y transporte.</p>
+                </div>
+            ` },
+            { id: 5, side: 'left', content: `
+                <h2>Laboratorio 1: Efecto Subsónico</h2>
+                <p>Simulador interactivo de frente de ondas.</p>
+                <div class="controls-panel">
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                        <span style="color:var(--text-color)"><strong>Emitida ($f_0$):</strong> <span id="tel-f0">400</span> Hz</span>
+                        <span style="color:var(--accent)"><strong>Percibida ($f'$):</strong> <span id="tel-fp">400</span> Hz</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 5px;">
+                        <span><strong>Vel. Fuente ($v_f$):</strong> <span id="tel-vf">0</span> m/s</span>
+                        <span style="color:#ef4444"><strong>Mach ($M$):</strong> <span id="tel-mach">0.00</span></span>
+                    </div>
+                    
+                    <label>Velocidad Fuente ($v_f$)</label>
+                    <input type="range" id="sim1-vf" min="-300" max="300" step="5" value="0">
+                    <div style="display:flex; justify-content:space-between; font-size: 0.70rem; color: #64748b; margin-top:-5px; margin-bottom: 10px;"><span>Alejando</span> <span>Acercando</span></div>
+                    
+                    <label>Frecuencia Original ($f_0$)</label>
+                    <input type="range" id="sim1-f0" min="200" max="800" step="10" value="400">
+                    
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                         <button class="nav-btn" style="position:relative; bottom:0; left:0; padding:4px 10px" onclick="togglePlay1()"><i id="icon-play1" class="fa-solid fa-pause"></i> Play/Pause</button>
+                         <button class="nav-btn" style="position:relative; bottom:0; left:0; width:100%; text-align:center" id="btn-obs" onclick="toggleObserverMode()">Observador: Frontal (Fijo)</button>
+                    </div>
+                </div>
+                <p class="handwritten" style="font-size:0.8rem; margin-top:10px;">* $v = 343$ m/s (Velocidad del sonido a 20°C)</p>
+            ` },
+            { id: 6, side: 'right', content: `
+                <div style="margin-top:-10px;">
+                    <div id="canvas1-container" class="canvas-container" style="height: 480px; background: #0f172a; box-shadow: inset 0 0 20px rgba(0,0,0,0.8);">
+                        <!-- p5.js se inyecta aqui -->
+                    </div>
+                </div>
+            ` },
+            { id: 7, side: 'left', content: `
+                <h2>Laboratorio 2: Vuelo Supersónico</h2>
+                <p>Comprende la transición crítica a <strong>Mach > 1</strong>.</p>
+                <div class="controls-panel">
+                    <label>Velocidad del Jet ($v_f$ en Mach)</label>
+                    <input type="range" id="sim2-mach" min="0.5" max="3.0" step="0.1" value="1.5">
+                    
+                    <div style="display:flex; justify-content:space-between; margin-top: 10px;">
+                        <span><strong>Mach ($v_f/v$):</strong> <span id="tel-mach2" style="color:var(--accent-red)">1.5</span></span>
+                        <span><strong>Ángulo Cono ($\\theta$):</strong> <span id="tel-theta" style="color:orange">41.8°</span></span>
+                    </div>
+                    
+                    <div style="margin-top:15px; border-top: 1px solid #cbd5e1; padding-top:10px; text-align:center">
+                        <button class="nav-btn" style="position:relative; bottom:0; left:0; background: var(--accent-red); padding:4px 10px" onclick="triggerBoom()">Test Sonic Boom</button>
+                    </div>
+                </div>
+                <div style="margin-top:10px; border-radius: 8px; overflow:hidden; border: 1px solid #ccc; display: flex; justify-content: center; background: #fff;">
+                    <img src="img/jet_mach.png" style="width:100%; max-height: 180px; object-fit:contain;" alt="Supersonic Jet Graphic">
+                </div>
+            ` },
+            { id: 8, side: 'right', content: `
+               <div style="margin-top:-10px;">
+                    <div id="canvas2-container" class="canvas-container" style="height: 480px; background: #1e293b; box-shadow: inset 0 0 20px rgba(0,0,0,0.8);">
+                        <!-- p5.js Jet se inyecta aqui -->
+                    </div>
+                </div>
+            ` },
+            { id: 9, side: 'left', content: `
+                <h2>Análisis Telemétrico Avanzado</h2>
+                <p>Relación matemática de frecuencia percibida según la velocidad de la fuente.</p>
+                <div id="graph-doppler" class="graph-container" style="height: 250px;"></div>
+                <p class="handwritten" style="font-size:0.85rem;">Nota: Observa la asíntota cuando $v_f \\to v$ (Mach 1).</p>
+            ` },
+            { id: 10, side: 'right', content: `
+                <div style="text-align:center; padding-top:25%;">
+                    <h1 style="font-size: 2rem;">Unidad Completada</h1>
+                    <i class="fa-solid fa-jet-fighter" style="font-size: 3.5rem; color: var(--accent); margin: 15px 0;"></i>
+                    <p style="font-size: 1.1rem; padding: 0 20px;">Dominas el concepto relativo de la propagación de ondas.</p>
+                    <div style="margin: 20px auto; width: 60%; border-top: 2px dashed #94a3b8; padding-top: 20px;">
+                        <p class="handwritten" style="color:#64748b;">Física III - Ing. Industrial</p>
+                    </div>
+                </div>
+            ` }
+        ];
+
+        // --- 2. NOTEBOOK SYSTEM UI ---
+        let leafPairs = [];
+        let currentLeaf = 0;
+
+        function buildNotebookData() {
+            for(let i=1; i < pagesData.length-1; i+=2) {
+                leafPairs.push({ front: pagesData[i], back: pagesData[i+1] });
+            }
+        }
+
+        function initNotebook() {
+            buildNotebookData();
+            document.getElementById('static-left').innerHTML = `
+                <div class="content">${pagesData[0].content}</div>
+                <div class="page-num left">Pág. ${pagesData[0].id}</div>
+                <button class="nav-btn btn-prev" style="opacity:0; pointer-events:none;">Anterior</button>
+            `;
+            document.getElementById('static-right').innerHTML = `
+                <div class="content">${pagesData[pagesData.length-1].content}</div>
+                <div class="page-num right">Pág. ${pagesData[pagesData.length-1].id}</div>
+                <button class="nav-btn btn-next" style="opacity:0; pointer-events:none;">Siguiente</button>
+            `;
+
+            const container = document.getElementById('leaves-container');
+            for(let i = leafPairs.length - 1; i >= 0; i--) {
+                const lp = leafPairs[i];
+                let zIndex = leafPairs.length - i;
+                
+                let nextBtn = `<button class="nav-btn btn-next" onclick="nextPage()">Siguiente <i class="fa-solid fa-arrow-right"></i></button>`;
+
+                let leafHtml = `
+                <div class="leaf" id="leaf-${i}" style="z-index: ${zIndex}">
+                    <div class="page page-front page-right">
+                        <div class="content">${lp.front.content}</div>
+                        <div class="page-num right">Pág. ${lp.front.id}</div>
+                        ${nextBtn}
+                    </div>
+                    <div class="page page-back">
+                        <div class="content">${lp.back.content}</div>
+                        <div class="page-num left">Pág. ${lp.back.id}</div>
+                        <button class="nav-btn btn-prev" onclick="prevPage()"><i class="fa-solid fa-arrow-left"></i> Anterior</button>
+                    </div>
+                </div>`;
+                container.innerHTML += leafHtml;
+            }
+
+            const binder = document.getElementById('binder');
+            for(let i=0; i<32; i++) binder.innerHTML += '<div class="ring"></div>';
+        }
+
+        function nextPage() {
+            if (currentLeaf < leafPairs.length) {
+                const leaf = document.getElementById('leaf-' + currentLeaf);
+                leaf.style.zIndex = currentLeaf + 20; 
+                leaf.classList.add('flipped');
+                currentLeaf++;
+            }
+        }
+        function prevPage() {
+            if (currentLeaf > 0) {
+                currentLeaf--;
+                const leaf = document.getElementById('leaf-' + currentLeaf);
+                leaf.style.zIndex = (leafPairs.length - currentLeaf); 
+                leaf.classList.remove('flipped');
+            }
+        }
+
+        // --- 3. P5.JS SIMULATIONS ---
+        
+        let p5_1, p5_2;
+
+        const p5Sim1 = ( p ) => {
+            let waves = [];
+            let sourceX = 0;
+            let time = 0;
+            let isPlaying = true;
+            let targetVf = 0;
+            let actualVf = 0;
+            let f0 = 400;
+            let v = 343; // Sound speed relative
+            let emitRate = 12; // Frames between emissions
+            let observerPos = { x: 50, y: 240 }; // Default Frontal
+            let obsMode = "front"; // front or back
+
+            p.setup = () => {
+                let canvas = p.createCanvas(p.windowWidth, 480);
+                canvas.parent('canvas1-container');
+                p.windowResized = () => {
+                    if(document.getElementById('canvas1-container')) {
+                        let w = document.getElementById('canvas1-container').clientWidth;
+                        p.resizeCanvas(w, 480);
+                        sourceX = w/2;
+                        if(obsMode === 'front') observerPos.x = w - 50;
+                        else observerPos.x = 50;
+                    }
+                };
+                
+                let w = document.getElementById('canvas1-container') ? document.getElementById('canvas1-container').clientWidth : 400;
+                p.resizeCanvas(w, 480);
+                sourceX = w/2;
+                observerPos.x = w - 50;
+
+                // Sync JS variables
+                document.getElementById('sim1-vf').addEventListener('input', e => { targetVf = parseFloat(e.target.value); });
+                document.getElementById('sim1-f0').addEventListener('input', e => { f0 = parseFloat(e.target.value); });
+            };
+
+            p.draw = () => {
+                p.background('#0f172a');
+                
+                if (!isPlaying) return;
+                time++;
+
+                // Smooth actualVf
+                actualVf += (targetVf - actualVf) * 0.1;
+                
+                // Dashboard Update Math
+                document.getElementById('tel-vf').innerText = Math.abs(actualVf).toFixed(1);
+                let mach = Math.abs(actualVf / v).toFixed(2);
+                document.getElementById('tel-mach').innerText = mach;
+                document.getElementById('tel-f0').innerText = f0.toFixed(0);
+                
+                // Efecto doppler calc: f' = f0(v / (v +- vf))
+                // Acercando = -, Alejando = +
+                let calcVf = actualVf; // Positive moving right
+                let isApproaching = false;
+                
+                if(obsMode === 'front' && actualVf > 0) isApproaching = true;
+                if(obsMode === 'back' && actualVf < 0) isApproaching = true;
+                
+                let sign = isApproaching ? -1 : 1;
+                let perceivedF = f0 * (v / (v + (sign * Math.abs(actualVf))));
+                document.getElementById('tel-fp').innerText = perceivedF.toFixed(0);
+
+                // Source movement
+                sourceX += (actualVf * 0.05); // Graphic speed scaled down
+                if(sourceX > p.width + 100) sourceX = -50;
+                if(sourceX < -100) sourceX = p.width + 50;
+
+                // Emit waves
+                if (time % emitRate === 0) {
+                    waves.push({ x: sourceX, r: 0 });
+                }
+
+                // Draw and expand waves
+                p.noFill();
+                p.strokeWeight(1.5);
+                for (let i = waves.length - 1; i >= 0; i--) {
+                    waves[i].r += (v * 0.05); // Wave speed expansion
+                    
+                    // Color shift based on compression visually (blue front, red back relative to center)
+                    let alpha = p.map(waves[i].r, 0, p.width, 255, 0);
+                    p.stroke(2, 132, 199, alpha); // Cyan base
+                    
+                    p.ellipse(waves[i].x, p.height / 2, waves[i].r * 2);
+
+                    if (waves[i].r > p.width * 1.5) {
+                        waves.splice(i, 1);
+                    }
+                }
+
+                // Draw Observer
+                p.fill('#f59e0b'); p.noStroke();
+                p.ellipse(observerPos.x, observerPos.y, 15);
+                p.textAlign(p.CENTER); p.textSize(12); p.fill(255);
+                p.text("Obs", observerPos.x, observerPos.y + 20);
+
+                // Draw Ambulance (Source)
+                p.push();
+                p.translate(sourceX, p.height/2);
+                p.fill(255); p.noStroke(); 
+                p.rect(-20, -12, 40, 20, 4); // Base
+                p.fill('#ef4444'); p.rect(-20, -2, 40, 4); // Red stripe
+                p.rect(-3, -8, 6, 12); p.rect(-6, -5, 12, 6); // Cross
+                p.fill(30); p.ellipse(-12, 8, 10, 10); p.ellipse(12, 8, 10, 10); // Wheels
+                p.fill('#0ea5e9'); if(time % 20 < 10) p.fill('#ef4444'); p.ellipse(0, -13, 8, 4); // Flashing lights
+                p.pop();
+            };
+
+            p.togglePlay = () => { isPlaying = !isPlaying; };
+            p.toggleObs = () => {
+                if(obsMode === 'front') {
+                    obsMode = 'back';
+                    observerPos.x = 50;
+                    document.getElementById('btn-obs').innerText = "Observador: Trasero (Fijo)";
+                } else {
+                    obsMode = 'front';
+                    observerPos.x = p.width - 50;
+                    document.getElementById('btn-obs').innerText = "Observador: Frontal (Fijo)";
+                }
+            }
+        };
+
+        const p5Sim2 = ( p ) => {
+            let waves = [];
+            let sourceX = 0;
+            let time = 0;
+            let mach = 1.5;
+            let v = 5; // Fixed wave speed
+            
+            p.setup = () => {
+                let canvas = p.createCanvas(p.windowWidth, 480);
+                canvas.parent('canvas2-container');
+                p.windowResized = () => {
+                    if(document.getElementById('canvas2-container')) {
+                        p.resizeCanvas(document.getElementById('canvas2-container').clientWidth, 480);
+                    }
+                };
+                let w = document.getElementById('canvas2-container') ? document.getElementById('canvas2-container').clientWidth : 400;
+                p.resizeCanvas(w, 480);
+
+                document.getElementById('sim2-mach').addEventListener('input', e => { 
+                    mach = parseFloat(e.target.value); 
+                    document.getElementById('tel-mach2').innerText = mach.toFixed(1);
+                    if(mach >= 1) {
+                        let theta = Math.asin(1/mach) * (180/Math.PI);
+                        document.getElementById('tel-theta').innerText = theta.toFixed(1) + "°";
+                    } else {
+                        document.getElementById('tel-theta').innerText = "N/A";
+                    }
+                });
+            };
+
+            p.draw = () => {
+                p.background('#1e293b');
+                time++;
+
+                let vf = v * mach;
+                sourceX += vf;
+                
+                if(sourceX > p.width + 200) { sourceX = -100; waves = []; }
+
+                if (time % 5 === 0) {
+                    waves.push({ x: sourceX, y: p.height/2, r: 0 });
+                }
+
+                p.noFill();
+                p.strokeWeight(1.5);
+                p.stroke(255, 100);
+
+                for (let i = waves.length - 1; i >= 0; i--) {
+                    waves[i].r += v;
+                    p.ellipse(waves[i].x, waves[i].y, waves[i].r * 2);
+                    if (waves[i].r > p.width * 1.5) waves.splice(i, 1);
+                }
+
+                // Draw Mach Cone if supersonic
+                if (mach > 1.05 && waves.length > 5) {
+                    let theta = Math.asin(1 / mach);
+                    p.stroke('#fbbf24'); // Yellow cone
+                    p.strokeWeight(2);
+                    let L = p.width; // Line length
+                    let topY = p.height/2 - L * Math.tan(theta);
+                    let botY = p.height/2 + L * Math.tan(theta);
+                    p.line(sourceX, p.height/2, sourceX - L, topY);
+                    p.line(sourceX, p.height/2, sourceX - L, botY);
+                } else if (mach > 0.95 && mach < 1.05) {
+                    // Sound barrier wall visual
+                    p.stroke('#ef4444'); p.strokeWeight(3);
+                    p.line(sourceX, 0, sourceX, p.height);
+                }
+
+                // Draw Jet
+                p.push();
+                p.translate(sourceX, p.height/2);
+                // Engine glow
+                if(mach >= 1) { p.fill(255, 100, 0); p.ellipse(-25, 0, 15 + Math.random()*10, 6); }
+                p.fill(150, 150, 160); p.noStroke();
+                p.ellipse(5, 0, 50, 8); // Fuselage
+                p.beginShape(); p.vertex(0, 0); p.vertex(-15, -20); p.vertex(-25, -20); p.vertex(-15, 0); p.endShape(p.CLOSE); // Wings
+                p.beginShape(); p.vertex(0, 0); p.vertex(-15, 20); p.vertex(-25, 20); p.vertex(-15, 0); p.endShape(p.CLOSE);
+                p.beginShape(); p.vertex(-15, 0); p.vertex(-22, -10); p.vertex(-25, -10); p.vertex(-22, 0); p.endShape(p.CLOSE); // Stabilizers
+                p.beginShape(); p.vertex(-15, 0); p.vertex(-22, 10); p.vertex(-25, 10); p.vertex(-22, 0); p.endShape(p.CLOSE);
+                p.fill(150, 230, 255); p.ellipse(15, 0, 12, 4); // Cockpit
+                p.pop();
+            };
+
+            p.triggerBoom = () => {
+                // Visual effect flash
+                p.fill(255, 255, 255, 150);
+                p.rect(0, 0, p.width, p.height);
+            }
+        };
+
+        function togglePlay1() { p5_1.togglePlay(); }
+        function toggleObserverMode() { p5_1.toggleObs(); }
+        function triggerBoom() { p5_2.triggerBoom(); }
+
+        // --- 4. PLOTLY GRAPHS ---
+        function initPlotly() {
+            if(!document.getElementById('graph-doppler')) return;
+            let v_sound = 343;
+            let f0 = 400;
+            let x_vf = [], y_fp_approach = [], y_fp_recede = [];
+            
+            for(let v=0; v<330; v+=5) {
+                x_vf.push(v);
+                y_fp_approach.push(f0 * (v_sound / (v_sound - v))); // acercamiento
+                y_fp_recede.push(f0 * (v_sound / (v_sound + v)));   // alejamiento
+            }
+
+            let trace1 = { x: x_vf, y: y_fp_approach, mode: 'lines', name: "Acercamiento (Blue)", line:{color:'#0ea5e9', width:3} };
+            let trace2 = { x: x_vf, y: y_fp_recede, mode: 'lines', name: "Alejamiento (Red)", line:{color:'#ef4444', width:3} };
+
+            let layout = {
+                margin: {t:20, b:40, l:45, r:10},
+                xaxis: {title: 'Velocidad Fuente (m/s)'},
+                yaxis: {title: 'Frecuencia (Hz)', range:[200, 1500]},
+                legend: {x: 0, y: 1}, 
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                font: {family: 'Outfit'}
+            };
+
+            Plotly.newPlot('graph-doppler', [trace1, trace2], layout, {responsive:true});
+        }
+
+        // --- 5. AI CHATBOT WITH WINDOW.AI & FALLBACKS ---
+        const avatars = {
+            newton: { name: "Isaac Newton", img: "https://upload.wikimedia.org/wikipedia/commons/3/39/GodfreyKneller-IsaacNewton-1689.jpg", saludo: "He definido las leyes del movimiento, pero el sonido tiene sus propias reglas. ¿Qué deseas saber sobre ondas en movimiento relativo?" },
+            hawking: { name: "Stephen Hawking", img: "https://upload.wikimedia.org/wikipedia/commons/e/eb/Stephen_Hawking.StarChild.jpg", saludo: "El universo está lleno de ondas. Incluso la radiación es afectada por relatividad. Hablemos sobre el universo físico." },
+            tyson: { name: "Neil deGrasse Tyson", img: "https://upload.wikimedia.org/wikipedia/commons/f/f6/Neil_deGrasse_Tyson_in_2017.jpg", saludo: "¡Oye, mira hacia arriba! El efecto Doppler es cómo sabemos que el universo se expande (Red shift cósmico). ¡Adelante con tus dudas!" },
+            lovelace: { name: "Ada Lovelace", img: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Ada_Lovelace_portrait.jpg", saludo: "Puedo programar la solución para las ecuaciones de las sondas Lidar. Dime las condiciones de los vehículos computacionales." },
+            curie: { name: "Marie Curie", img: "https://upload.wikimedia.org/wikipedia/commons/c/c8/Marie_Curie_c._1920s.jpg", saludo: "Saludos. La energía radiante viaja implacablemente. Analicemos cómo la frecuencia percibida cambia con exactitud científica." }
+        };
+
+        function toggleChat() {
+            let win = document.getElementById('chat-window');
+            win.style.display = win.style.display === 'none' ? 'flex' : 'none';
+            if(win.style.display === 'flex' && document.getElementById('chat-history').innerHTML.trim() === '') {
+                changeAvatar();
+                checkAiStatus();
+            }
+        }
+
+        function checkAiStatus() {
+            if (window.ai) {
+                 document.getElementById('nano-badge').style.display = 'inline-block';
+            }
+        }
+
+        function changeAvatar() {
+            let sel = document.getElementById('chat-avatar-select').value;
+            let avatar = avatars[sel];
+            document.getElementById('chat-avatar-name').innerText = "Chat con " + avatar.name;
+            document.getElementById('chat-header-img').src = avatar.img;
+            let hist = document.getElementById('chat-history');
+            hist.innerHTML = '';
+            addMessage(sel, avatar.saludo, true);
+        }
+
+        function addMessage(avatarKey, text, isBot) {
+            let div = document.createElement('div');
+            div.style.padding = '8px'; div.style.borderRadius = '8px'; div.style.marginBottom = '5px';
+            
+            if(isBot) {
+                let av = avatars[avatarKey];
+                div.style.background = '#e0f2fe'; div.style.alignSelf = 'flex-start';
+                div.innerHTML = `
+                    <div style="display:flex; gap:8px;">
+                        <img src="${av.img}" class="chat-avatar" style="width:25px; height:25px; object-fit: cover;">
+                        <div><strong>${av.name}:</strong><br>${text}</div>
+                    </div>
+                `;
+            } else {
+                div.style.background = '#dcf8c6'; div.style.alignSelf = 'flex-end';
+                div.style.textAlign = 'right';
+                div.innerHTML = `<strong>Tú:</strong> ${text}`;
+            }
+            let hist = document.getElementById('chat-history');
+            hist.appendChild(div);
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            let inp = document.getElementById('chat-input');
+            let text = inp.value.trim();
+            if(!text) return;
+            addMessage("tú", text, false);
+            inp.value = '';
+
+            let sel = document.getElementById('chat-avatar-select').value;
+            
+            let btn = document.querySelector('button[onclick="sendChatMessage()"]');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+
+            let response = await getChatbotResponse(text, avatars[sel].name);
+            
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+            btn.disabled = false;
+
+            addMessage(sel, response, true);
+            renderMathInElement(document.getElementById('chat-history'), { delimiters: [{left: "$", right: "$", display: false}]});
+        }
+
+        async function getChatbotResponse(promptText, personaName) {
+            if (window.ai) {
+                try {
+                    let notebookContext = pagesData.map(p => p.content).join(" ").replace(/<[^>]*>?/gm, ''); 
+                    if(!window.chatSession || window.currentPersona !== personaName) {
+                       window.chatSession = await window.ai.createTextSession({
+                           systemPrompt: "Eres " + personaName + ", respondiendo como tutor de física en español conciso y directo para universitarios. Contenido disponible: " + notebookContext.substring(0, 2000)
+                       });
+                       window.currentPersona = personaName;
+                    }
+                    return await window.chatSession.prompt(promptText);
+                } catch(e) {
+                    console.warn("window.ai err:", e);
+                    return getSimulatedResponse(promptText);
+                }
+            } else {
+                return getSimulatedResponse(promptText);
+            }
+        }
+
+        function getSimulatedResponse(text) {
+             text = text.toLowerCase();
+             return new Promise(resolve => {
+                 setTimeout(() => {
+                     let resp = "Interesante pregunta. El efecto Doppler nos indica que la frecuencia aumenta si fuente y observador se acercan. ¿Notaste cómo cambia la forma de onda en el canvas?";
+                     if(text.includes('mach') || text.includes('supersónico')) resp = "Cuando $v_f > v$, rompemos la barrera del sonido ($M>1$). Esto crea el Cono de Mach, que es básicamente una superposición destructiva y constructiva extrema de ondas acústicas.";
+                     if(text.includes('formula') || text.includes('ecuacion') || text.includes('cálculo')) resp = "La clave está en el convenio de signos: $f' = f_0 (v \\pm v_o)/(v \\mp v_f)$. Recuerda: lo que acerque los cuerpos incrementa $f'$, lo que los aleje lo disminuye.";
+                     if(text.includes('luz') || text.includes('red shift') || text.includes('blue shift')) resp = "Para luz, se usa el Doppler Relativista. Un corrimiento al rojo (red shift) indica alejamiento astronómico.";
+                     if(text.includes('gracias')) resp = "¡Es un honor cultivar el intelecto científico!";
+                     resolve(resp);
+                 }, 800);
+             });
+        }
+
+        // --- UTILS ---
+        document.getElementById('btn-screenshot').onclick = () => { html2canvas(document.body).then(canvas => {let a=document.createElement('a'); a.download='cuaderno_doppler.png'; a.href=canvas.toDataURL(); a.click();});};
+        document.getElementById('btn-qr').onclick = () => { document.getElementById('qr-modal').style.display = 'flex'; document.getElementById('qrcode-container').innerHTML=''; new QRCode(document.getElementById('qrcode-container'),{text:window.location.href, width:150, height:150}); };
+
+
+        // --- BOOTSTRAP ---
+        window.onload = () => {
+            initNotebook();
+            renderMathInElement(document.body, { delimiters: [{left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false}], throwOnError: false });
+            setTimeout(() => {
+                p5_1 = new p5(p5Sim1);
+                p5_2 = new p5(p5Sim2);
+                initPlotly();
+            }, 600);
+        };
+    </script>
+</body>
+</html>
